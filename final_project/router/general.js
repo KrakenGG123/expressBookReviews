@@ -9,6 +9,8 @@ let users   = require('./auth_users.js').users;
 
 const public_users = express.Router();
 
+const BASE_URL = 'http://localhost:5000';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /register
 // Body: { "username": "...", "password": "..." }
@@ -36,99 +38,112 @@ public_users.post('/register', (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 10 — GET /
-// Returns all books using async-await with a Promise
+// Returns all books using async-await with Axios
 // ─────────────────────────────────────────────────────────────────────────────
 public_users.get('/', async (req, res) => {
   try {
-    const allBooks = await new Promise((resolve, reject) => {
-      try {
-        resolve(books);
-      } catch (err) {
-        reject(err);
-      }
-    });
-
-    return res.status(200).json(JSON.stringify(allBooks));
+    const response = await axios.get(`${BASE_URL}/books`);
+    return res.status(200).json(response.data);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ message: 'Failed to retrieve books', error: err.message });
+    // Fallback: serve directly from memory if Axios call fails
+    return res.status(200).json(books);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal route used by Axios — GET /books
+// ─────────────────────────────────────────────────────────────────────────────
+public_users.get('/books', (req, res) => {
+  return res.status(200).json(books);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 11 — GET /isbn/:isbn
-// Returns a single book by ISBN using async-await with a Promise
+// Returns a single book by ISBN using async-await with Axios
 // ─────────────────────────────────────────────────────────────────────────────
 public_users.get('/isbn/:isbn', async (req, res) => {
   const { isbn } = req.params;
-
   try {
-    const book = await new Promise((resolve, reject) => {
-      const found = books[isbn];
-      if (found) {
-        resolve(found);
-      } else {
-        reject(new Error(`No book found with ISBN ${isbn}`));
-      }
-    });
-
-    return res.status(200).json(JSON.stringify(book));
+    const response = await axios.get(`${BASE_URL}/books/${isbn}`);
+    return res.status(200).json(response.data);
   } catch (err) {
-    return res.status(404).json({ message: err.message });
+    const status = err.response ? err.response.status : 404;
+    const message = err.response ? err.response.data.message : `No book found with ISBN ${isbn}`;
+    return res.status(status).json({ message });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal route used by Axios — GET /books/:isbn
+// ─────────────────────────────────────────────────────────────────────────────
+public_users.get('/books/:isbn', (req, res) => {
+  const book = books[req.params.isbn];
+  if (!book) {
+    return res.status(404).json({ message: `No book found with ISBN ${req.params.isbn}` });
+  }
+  return res.status(200).json(book);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 12 — GET /author/:author
-// Returns all books matching an author using async-await with a Promise
+// Returns all books matching an author using async-await with Axios
 // ─────────────────────────────────────────────────────────────────────────────
 public_users.get('/author/:author', async (req, res) => {
-  const authorQuery = req.params.author.toLowerCase();
-
+  const { author } = req.params;
   try {
-    const matches = await new Promise((resolve, reject) => {
-      const found = Object.entries(books)
-        .filter(([, book]) => book.author.toLowerCase().includes(authorQuery))
-        .map(([isbn, book]) => ({ isbn, ...book }));
-
-      if (found.length > 0) {
-        resolve(found);
-      } else {
-        reject(new Error(`No books found by author "${req.params.author}"`));
-      }
-    });
-
-    return res.status(200).json(JSON.stringify(matches));
+    const response = await axios.get(`${BASE_URL}/books/author/${encodeURIComponent(author)}`);
+    return res.status(200).json(response.data);
   } catch (err) {
-    return res.status(404).json({ message: err.message });
+    const status = err.response ? err.response.status : 404;
+    const message = err.response ? err.response.data.message : `No books found by author "${author}"`;
+    return res.status(status).json({ message });
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Internal route used by Axios — GET /books/author/:author
+// ─────────────────────────────────────────────────────────────────────────────
+public_users.get('/books/author/:author', (req, res) => {
+  const authorQuery = req.params.author.toLowerCase();
+  const matches = Object.entries(books)
+    .filter(([, book]) => book.author.toLowerCase().includes(authorQuery))
+    .map(([isbn, book]) => ({ isbn, ...book }));
+
+  if (matches.length === 0) {
+    return res.status(404).json({ message: `No books found by author "${req.params.author}"` });
+  }
+  return res.status(200).json(matches);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Task 13 — GET /title/:title
-// Returns all books matching a title using async-await with a Promise
+// Returns all books matching a title using async-await with Axios
 // ─────────────────────────────────────────────────────────────────────────────
 public_users.get('/title/:title', async (req, res) => {
-  const titleQuery = req.params.title.toLowerCase();
-
+  const { title } = req.params;
   try {
-    const matches = await new Promise((resolve, reject) => {
-      const found = Object.entries(books)
-        .filter(([, book]) => book.title.toLowerCase().includes(titleQuery))
-        .map(([isbn, book]) => ({ isbn, ...book }));
-
-      if (found.length > 0) {
-        resolve(found);
-      } else {
-        reject(new Error(`No books found with title matching "${req.params.title}"`));
-      }
-    });
-
-    return res.status(200).json(JSON.stringify(matches));
+    const response = await axios.get(`${BASE_URL}/books/title/${encodeURIComponent(title)}`);
+    return res.status(200).json(response.data);
   } catch (err) {
-    return res.status(404).json({ message: err.message });
+    const status = err.response ? err.response.status : 404;
+    const message = err.response ? err.response.data.message : `No books found with title matching "${title}"`;
+    return res.status(status).json({ message });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal route used by Axios — GET /books/title/:title
+// ─────────────────────────────────────────────────────────────────────────────
+public_users.get('/books/title/:title', (req, res) => {
+  const titleQuery = req.params.title.toLowerCase();
+  const matches = Object.entries(books)
+    .filter(([, book]) => book.title.toLowerCase().includes(titleQuery))
+    .map(([isbn, book]) => ({ isbn, ...book }));
+
+  if (matches.length === 0) {
+    return res.status(404).json({ message: `No books found with title matching "${req.params.title}"` });
+  }
+  return res.status(200).json(matches);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
